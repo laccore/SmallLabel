@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1x1 Label Creator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.16.0/pdf-lib.min.js"></script>
+    <style>
+        body {
+            font-family: "Helvetica", sans-serif;
+        }
+    </style>
+    <script>
+        async function generatePDF() {
+            try {
+                const data = document.getElementById("data_input").value.trim();
+                const pdfDoc = await PDFLib.PDFDocument.create();
+                const labelWidth = (0.9375 - 0.1) * 72; // Label width in points
+                const labelHeight = 0.9375 * 72; // Label height in points
+                const marginLeft = 0.05 * 72;
+                const marginTop = 0.05 * 72;
+                const lines = data.split("\n");
+
+                for (const line of lines) {
+                    if (line.trim() !== "") {
+                        const page = pdfDoc.addPage([labelWidth, labelHeight]);
+                        const columns = line.split("\t");
+                        let fontSize = calculateFontSize(columns, labelWidth, labelHeight, marginLeft, marginTop);
+
+                        let x = marginLeft;
+                        let y = labelHeight - marginTop - fontSize;
+
+                        for (const column of columns) {
+                            page.drawText(column, { x: x, y: y, size: fontSize });
+                            y -= fontSize; // Adjust for next line
+                        }
+                    }
+                }
+
+                const pdfBytes = await pdfDoc.save();
+                const blob = new Blob([pdfBytes], { type: "application/pdf" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "labels.pdf";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                console.error("An error occurred:", error);
+            }
+        }
+
+        function calculateFontSize(columns, labelWidth, labelHeight, marginLeft, marginTop) {
+            let initialFontSize = 100; // Start with a large font size and decrease if necessary
+            let fontSize = initialFontSize;
+            let maxLineWidth = labelWidth - 2 * marginLeft;
+            let textWidth;
+            let requiredHeight;
+
+            // Determine font size based on width for the shortest text
+            let minTextLength = Math.min(...columns.map(column => column.length));
+            fontSize = maxLineWidth / (minTextLength * 0.6); // Estimate starting font size based on shortest text
+
+            // Adjust font size if required height exceeds label height
+            do {
+                requiredHeight = columns.length * (fontSize * 1.2); // Calculate required height
+                textWidth = columns.reduce((max, column) => Math.max(max, measureTextWidth(column, fontSize)), 0);
+                
+                if (textWidth > maxLineWidth || requiredHeight > labelHeight) {
+                    fontSize -= 1; // Decrease font size
+                } else {
+                    break; // If fits, break out of the loop
+                }
+            } while (fontSize > 5); // Ensure font size doesn't become too small
+
+            return fontSize;
+        }
+
+        function measureTextWidth(text, fontSize) {
+            // Simplistic calculation, adjust based on actual font characteristics
+            return text.length * (fontSize * 0.6);
+        }
+    </script>
+</head>
+<body>
+    <h1>1x1 Label Creator</h1>
+    <p>Paste your data below:</p>
+    <textarea id="data_input" rows="10" cols="50"></textarea>
+    <br>
+    <button onclick="generatePDF()">Generate PDF</button>
+</body>
+</html>
